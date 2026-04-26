@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap');
+
+:root {
+  --bg-primary: #0b0c10;
+  --bg-secondary: #1f2833;
+  --bg-glass: rgba(31, 40, 51, 0.4);
+  --text-primary: #ffffff;
+  --text-secondary: #c5c6c7;
+  --accent-cyan: #66fcf1;
+  --accent-teal: #45a29e;
+  --accent-pink: #f166b0;
+  --accent-orange: #fc8d66;
+  
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-active: rgba(102, 252, 241, 0.3);
+  
+  --shadow-neon: 0 0 15px rgba(102, 252, 241, 0.2);
+  --glass-backdrop: blur(12px);
+  
+  --radius-md: 12px;
+  --radius-lg: 24px;
+}
+
+html,
+body {
+  max-width: 100vw;
+  overflow-x: hidden;
+  height: 100%;
+}
+
+body {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  padding: 0;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Outfit', sans-serif;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Base Glass Container */
+.glass-panel {
+  background: var(--bg-glass);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
