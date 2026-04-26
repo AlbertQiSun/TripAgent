@@ -180,6 +180,8 @@ IMPORTANT RULES:
 - Each day should have 4-6 activities with travel in between.
 - Use real, well-known places with accurate ratings.
 - When modifying an existing plan, preserve the same activities unless a change is specifically needed. Only adjust transit, ordering, or swap items that conflict with the new info.
+- **NEVER TRUNCATE**: You MUST generate ALL requested days in a single JSON response. If the user asks for 7 days, produce 7 days. If they ask for 14 days, produce 14 days. Never stop mid-way or say "I'll continue in the next message". For trips longer than 5 days, keep activity descriptions to 1-2 sentences to fit within output limits.
+- For multi-week trips, be concise: short descriptions, minimal ethical_notes (only when truly needed), and brief logistics.
 """
 
 

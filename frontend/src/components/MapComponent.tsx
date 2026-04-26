@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap, Polyline } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -14,6 +14,15 @@ const DefaultIcon = L.icon({
   iconAnchor: [12, 41],
   popupAnchor: [1, -34],
   tooltipAnchor: [16, -28],
+  shadowSize: [41, 41]
+});
+
+const HighlightedIcon = L.icon({
+  iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
   shadowSize: [41, 41]
 });
 
@@ -32,14 +41,30 @@ function MapBounds({ markers }: { markers: Array<{lat: number, lng: number}> }) 
   return null;
 }
 
+function FlyToMarker({ activity, activities }: { activity: string | null, activities: any[] }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!activity) return;
+    const found = activities.find((a: any) => a.name === activity);
+    if (found && found.coordinates) {
+      map.flyTo([found.coordinates.lat, found.coordinates.lng], 16, { duration: 0.8 });
+    }
+  }, [activity, activities, map]);
+
+  return null;
+}
+
 interface MapProps {
   plan: any;
   onMarkerClick?: (activityName: string) => void;
+  highlightedActivity?: string | null;
 }
 
-export default function MapComponent({ plan, onMarkerClick }: MapProps) {
+export default function MapComponent({ plan, onMarkerClick, highlightedActivity }: MapProps) {
   const [mounted, setMounted] = useState(false);
   const [routePath, setRoutePath] = useState<[number, number][]>([]);
+  const markerRefs = useRef<Record<string, L.Marker>>({});
 
   const activities = plan?.activities?.filter((a: any) => a.type === 'activity' && a.coordinates) || [];
   const markers = activities.map((a: any) => ({ lat: a.coordinates.lat, lng: a.coordinates.lng, name: a.name }));
@@ -50,6 +75,15 @@ export default function MapComponent({ plan, onMarkerClick }: MapProps) {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Open popup for highlighted activity
+  useEffect(() => {
+    if (highlightedActivity && markerRefs.current[highlightedActivity]) {
+      setTimeout(() => {
+        markerRefs.current[highlightedActivity]?.openPopup();
+      }, 900); // wait for flyTo animation
+    }
+  }, [highlightedActivity]);
   
   useEffect(() => {
     if (markers.length > 1) {
@@ -97,6 +131,8 @@ export default function MapComponent({ plan, onMarkerClick }: MapProps) {
         <Marker 
           key={idx} 
           position={[item.coordinates.lat, item.coordinates.lng]}
+          icon={highlightedActivity === item.name ? HighlightedIcon : DefaultIcon}
+          ref={(ref) => { if (ref) markerRefs.current[item.name] = ref; }}
           eventHandlers={{
             click: () => onMarkerClick?.(item.name)
           }}
@@ -107,6 +143,7 @@ export default function MapComponent({ plan, onMarkerClick }: MapProps) {
         </Marker>
       ))}
       {markers.length > 0 && <MapBounds markers={markers} />}
+      <FlyToMarker activity={highlightedActivity || null} activities={activities} />
     </MapContainer>
   );
 }

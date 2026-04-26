@@ -27,6 +27,9 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [expandedSteps, setExpandedSteps] = useState<Set<number>>(new Set());
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
+  const [highlightedActivity, setHighlightedActivity] = useState<string | null>(null);
+  const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
 
   const [username, setUsername] = useState('');
   const [token, setToken] = useState('');
@@ -338,6 +341,7 @@ export default function Home() {
       let buffer = '';
 
       if (!reader) throw new Error('No reader');
+      readerRef.current = reader;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -388,16 +392,65 @@ export default function Home() {
           }
         }
       }
-    } catch (error) {
-      console.error('Stream error:', error);
-      setSteps(prev => [...prev, { step_type: 'thought', content: `Error: ${error}` }]);
+    } catch (error: any) {
+      // Don't show error for intentional cancellation
+      if (error?.name !== 'AbortError' && !String(error).includes('cancel')) {
+        console.error('Stream error:', error);
+        setSteps(prev => [...prev, { step_type: 'thought', content: `Error: ${error}` }]);
+      }
     }
+    readerRef.current = null;
     setLoading(false);
 
     // Auto-save conversation in background
     autoSaveSession(accumulatedMessages, accumulatedPlans, currentSessionId, token, username);
     // Clear pending image after send
     setPendingImage(null);
+    setEditingMessageIndex(null);
+  };
+
+  const handleStop = () => {
+    if (readerRef.current) {
+      readerRef.current.cancel();
+      readerRef.current = null;
+    }
+    setLoading(false);
+  };
+
+  const handleEditMessage = (msgIndex: number) => {
+    // Only edit user messages
+    if (messages[msgIndex]?.role !== 'user') return;
+    setEditingMessageIndex(msgIndex);
+    setQuery(messages[msgIndex].content);
+  };
+
+  const handleSubmitEdit = () => {
+    if (editingMessageIndex === null || !query.trim()) return;
+    // Truncate messages to before the edited message
+    const truncated = messages.slice(0, editingMessageIndex);
+    setMessages(truncated);
+    setSteps([]);
+    // Send with the new query — handleSearch will append it as a new user message
+    const editQuery = query;
+    setEditingMessageIndex(null);
+    handleSearch(editQuery);
+  };
+
+  const handleRegenerate = (msgIndex: number) => {
+    // Find the preceding user message to re-send
+    if (messages[msgIndex]?.role !== 'model') return;
+    // Find the last user message before this AI message
+    let userMsgIndex = -1;
+    for (let i = msgIndex - 1; i >= 0; i--) {
+      if (messages[i].role === 'user') { userMsgIndex = i; break; }
+    }
+    if (userMsgIndex === -1) return;
+    // Truncate to just before the user message
+    const truncated = messages.slice(0, userMsgIndex);
+    const userQuery = messages[userMsgIndex].content;
+    setMessages(truncated);
+    setSteps([]);
+    handleSearch(userQuery);
   };
 
   const handleSwap = (activityName: string, dayIndex: number) => {
@@ -620,11 +673,29 @@ export default function Home() {
 
           {/* Chat history */}
           {messages.map((msg, idx) => (
-            <div key={`msg-${idx}`} className={msg.role === 'user' ? styles.userMessage : styles.agentMessage}>
+            <div key={`msg-${idx}`} className={`${msg.role === 'user' ? styles.userMessage : styles.agentMessage} ${styles.messageRow}`}>
               <div className={styles.avatar}>{msg.role === 'user' ? 'U' : 'AI'}</div>
               <div className={styles.messageBubble}>
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
+              {!loading && (
+                <div className={styles.messageActions}>
+                  {msg.role === 'user' && (
+                    <button 
+                      className={styles.msgActionBtn} 
+                      onClick={() => handleEditMessage(idx)} 
+                      title="Edit & resend"
+                    >✏️</button>
+                  )}
+                  {msg.role === 'model' && (
+                    <button 
+                      className={styles.msgActionBtn} 
+                      onClick={() => handleRegenerate(idx)} 
+                      title="Regenerate"
+                    >🔄</button>
+                  )}
+                </div>
+              )}
             </div>
           ))}
 
@@ -667,6 +738,9 @@ export default function Home() {
               <div className={styles.loadingDot}></div>
               <div className={styles.loadingDot}></div>
               <span>Agent is thinking...</span>
+              <button className={styles.stopBtn} onClick={handleStop} title="Stop generating">
+                ⏹ Stop
+              </button>
             </div>
           )}
 
@@ -705,18 +779,33 @@ export default function Home() {
                 <button onClick={() => setPendingImage(null)} style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: 'var(--text-secondary)'}}>✕</button>
               </div>
             )}
+            {editingMessageIndex !== null && (
+              <div style={{display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px', background: 'rgba(8,145,178,0.08)', borderRadius: '8px', fontSize: '12px', color: 'var(--accent-cyan)'}}>
+                ✏️ Editing message — press Enter or click send to re-submit
+                <button onClick={() => { setEditingMessageIndex(null); setQuery(''); }} style={{background: 'none', border: 'none', cursor: 'pointer', fontSize: '12px', color: 'var(--text-secondary)', marginLeft: 'auto'}}>Cancel</button>
+              </div>
+            )}
             <input 
               type="text" 
-              placeholder={pendingImage ? "Describe what you want to do with this photo..." : "Type your message... e.g. Plan a 3-day cultural trip to Tokyo"}
+              placeholder={editingMessageIndex !== null ? "Edit your message..." : pendingImage ? "Describe what you want to do with this photo..." : "Type your message... e.g. Plan a 3-day cultural trip to Tokyo"}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               className={styles.inputField}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  if (editingMessageIndex !== null) handleSubmitEdit();
+                  else handleSearch();
+                }
+              }}
               disabled={loading}
             />
           </div>
-          <button onClick={() => handleSearch()} className={styles.sendButton} disabled={loading}>
-            {loading ? '⏳' : '→'}
+          <button 
+            onClick={() => editingMessageIndex !== null ? handleSubmitEdit() : handleSearch()} 
+            className={styles.sendButton} 
+            disabled={loading}
+          >
+            {loading ? '⏳' : editingMessageIndex !== null ? '✏️' : '→'}
           </button>
         </div>
       </div>
@@ -725,7 +814,7 @@ export default function Home() {
       <div className={styles.rightPanel}>
         <div className={styles.mapContainer}>
           {plan ? (
-            <MapComponent plan={{ activities: allActivities }} onMarkerClick={scrollToActivity} />
+            <MapComponent plan={{ activities: allActivities }} onMarkerClick={scrollToActivity} highlightedActivity={highlightedActivity} />
           ) : (
             <div className={styles.mapPlaceholder}>
               🗺️ Map will render here once a plan is generated
@@ -779,7 +868,11 @@ export default function Home() {
                   {day.activities.map((item: any, idx: number) => (
                     <div key={idx} className={styles.timelineItem} id={`activity-${item.name?.replace(/\s+/g, '-')}`}>
                       {item.type === 'activity' ? (
-                        <div className={styles.locationCard}>
+                        <div 
+                          className={`${styles.locationCard} ${highlightedActivity === item.name ? styles.highlightedCard : ''}`}
+                          onClick={() => setHighlightedActivity(highlightedActivity === item.name ? null : item.name)}
+                          style={{cursor: 'pointer'}}
+                        >
                           <div className={styles.timeLabel}>{item.time_start}</div>
                           <div className={styles.cardContent}>
                             <div className={styles.cardHeader}>

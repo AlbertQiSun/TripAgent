@@ -1078,3 +1078,63 @@
   border-radius: 12px;
   letter-spacing: 0.3px;
 }
+
+/* ── Message Row & Actions ─────────────────────── */
+.messageRow {
+  position: relative;
+}
+.messageActions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: none;
+  gap: 4px;
+}
+.messageRow:hover .messageActions {
+  display: flex;
+}
+.msgActionBtn {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  cursor: pointer;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  opacity: 0.7;
+}
+.msgActionBtn:hover {
+  opacity: 1;
+  background: var(--bg-hover);
+  border-color: var(--accent-cyan);
+}
+
+/* ── Stop Button ───────────────────────────────── */
+.stopBtn {
+  background: #fee2e2;
+  color: #dc2626;
+  border: 1px solid #fca5a5;
+  border-radius: 14px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: 8px;
+  transition: all 0.2s ease;
+}
+.stopBtn:hover {
+  background: #fca5a5;
+  color: #991b1b;
+}
+
+/* ── Highlighted Card ──────────────────────────── */
+.highlightedCard {
+  outline: 2px solid var(--accent-cyan) !important;
+  outline-offset: -2px;
+  box-shadow: 0 0 12px rgba(8, 145, 178, 0.25);
+  transition: all 0.3s ease;
+}
