@@ -679,9 +679,9 @@ export default function Home() {
     const variant = planVariants[idx];
     if (!variant) return;
     setSelectedVariant(idx);
-    // Check if it's a full plan or an outline
+    // Check if it's a full plan (has logistics) or semi-detailed (needs expansion)
     const firstAct = variant.days?.[0]?.activities?.find((a: any) => a.type === 'activity');
-    const isOutline = firstAct && !firstAct.coordinates;
+    const isOutline = firstAct && !firstAct.logistics;
     if (isOutline) {
       // Expand outline: clear comparison view, ask LLM to expand
       setPlanVariants([]);
@@ -958,7 +958,13 @@ export default function Home() {
                   <button
                     key={i}
                     className={`${styles.planVariantTab} ${selectedVariant === i ? styles.planVariantTabActive : ''}`}
-                    onClick={() => setSelectedVariant(i)}
+                    onClick={() => {
+                      setSelectedVariant(i);
+                      // Update the plan so the map shows this variant's coordinates
+                      const newHistory = [...planHistory];
+                      newHistory[currentPlanIndex] = planVariants[i];
+                      setPlanHistory(newHistory);
+                    }}
                   >
                     Plan {v.label || String.fromCharCode(65 + i)}
                     <span style={{fontSize: '10px', opacity: 0.7, marginLeft: '4px'}}>{v.style}</span>
@@ -972,7 +978,7 @@ export default function Home() {
           {planVariants.length > 1 ? (
             <div className={styles.planComparisonGrid}>
               {planVariants.map((variant: any, vi: number) => {
-                const isDetailed = variant.days?.[0]?.activities?.some((a: any) => a.coordinates);
+                const isDetailed = variant.days?.[0]?.activities?.some((a: any) => a.logistics);
                 return (
                   <div key={vi} className={`${styles.planComparisonCard} ${selectedVariant === vi ? styles.planComparisonCardActive : ''}`}>
                     <div className={styles.planCardHeader}>
@@ -987,7 +993,13 @@ export default function Home() {
                             {day.activities?.filter((a: any) => a.type === 'activity').map((act: any, ai: number) => (
                               <li key={ai}>
                                 <span className={styles.planCardTime}>{act.time_start}</span>
-                                {act.name}
+                                <div style={{flex: 1}}>
+                                  <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+                                    <strong style={{fontSize: '12px'}}>{act.name}</strong>
+                                    {act.rating && <span style={{fontSize: '10px', color: '#d97706'}}>★ {act.rating}</span>}
+                                  </div>
+                                  {act.description && <div style={{fontSize: '11px', color: 'var(--text-secondary)', lineHeight: 1.3, marginTop: '2px'}}>{act.description}</div>}
+                                </div>
                               </li>
                             ))}
                           </ul>

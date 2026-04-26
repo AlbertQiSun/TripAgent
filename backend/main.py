@@ -127,10 +127,10 @@ PLAN VARIANTS:
 When generating a NEW plan (not modifying an existing one), you MUST produce THREE plan variants:
 - **Plan A** ("Balanced"): Your best all-around recommendation. FULLY detailed.
 - **Plan B** ("Adventurous"): More off-the-beaten-path, unique experiences. OUTLINE ONLY.
-- **Plan C** ("Relaxed"): Slower pace, fewer activities, budget-friendly. OUTLINE ONLY.
+- **Plan C** ("Relaxed"): Slower pace, fewer activities, budget-friendly.
 
-Plan A = full detail (all days, activities, travel segments, logistics, coordinates).
-Plans B and C = outlines (day_index, date, theme, and activity names with time_start ONLY — NO logistics, coordinates, descriptions, or travel segments).
+Plan A = FULL detail (all days, activities, travel segments, logistics, coordinates, descriptions).
+Plans B and C = SEMI-DETAILED: include day_index, date, theme, and for each activity include: type, time_start, name, description (1 sentence), rating, and coordinates. Do NOT include logistics, travel segments, ethical_note, or time_end for B/C.
 
 When MODIFYING an existing plan (swap, remove, update), return ONLY a single plan with "days" — NOT the three-variant format.
 
@@ -155,11 +155,11 @@ FOR NEW PLANS (three variants):
     },
     {
       "label": "B", "style": "Adventurous",
-      "days": [{"day_index": 1, "date": "Day 1", "theme": "Off-the-beaten-path", "activities": [{"type": "activity", "time_start": "09:00", "name": "Hidden Gem Place"}]}]
+      "days": [{"day_index": 1, "date": "Day 1", "theme": "Off-the-beaten-path", "activities": [{"type": "activity", "time_start": "09:00", "name": "Hidden Gem Place", "description": "A unique local experience.", "rating": 4.3, "coordinates": {"lat": 35.6800, "lng": 139.7000}}]}]
     },
     {
       "label": "C", "style": "Relaxed",
-      "days": [{"day_index": 1, "date": "Day 1", "theme": "Easy Morning", "activities": [{"type": "activity", "time_start": "10:00", "name": "Leisurely Place"}]}]
+      "days": [{"day_index": 1, "date": "Day 1", "theme": "Easy Morning", "activities": [{"type": "activity", "time_start": "10:00", "name": "Leisurely Place", "description": "A calm start to the day.", "rating": 4.6, "coordinates": {"lat": 35.6700, "lng": 139.6400}}]}]
     }
   ]
 }
