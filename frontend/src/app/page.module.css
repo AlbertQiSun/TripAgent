@@ -1080,18 +1080,15 @@
 }
 
 /* ── Message Row & Actions ─────────────────────── */
-.messageRow {
-  position: relative;
-}
 .messageActions {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  display: none;
+  display: flex;
   gap: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  padding: 0 4px;
 }
 .messageRow:hover .messageActions {
-  display: flex;
+  opacity: 1;
 }
 .msgActionBtn {
   background: var(--bg-secondary);
@@ -1115,20 +1112,23 @@
 
 /* ── Stop Button ───────────────────────────────── */
 .stopBtn {
-  background: #fee2e2;
-  color: #dc2626;
-  border: 1px solid #fca5a5;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
   border-radius: 14px;
-  padding: 3px 12px;
-  font-size: 12px;
-  font-weight: 600;
+  padding: 3px 10px;
+  font-size: 11px;
   cursor: pointer;
   margin-left: 8px;
   transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 .stopBtn:hover {
-  background: #fca5a5;
-  color: #991b1b;
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
 }
 
 /* ── Highlighted Card ──────────────────────────── */
