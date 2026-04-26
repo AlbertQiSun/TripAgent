@@ -1220,3 +1220,105 @@
 .planVariantTabActive:hover {
   background: rgba(8, 145, 178, 0.15);
 }
+
+/* ── Plan Comparison Grid (A/B/C) ─────────────── */
+.planComparisonGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  padding: 12px 0;
+  overflow-y: auto;
+  flex: 1;
+}
+.planComparisonCard {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+.planComparisonCard:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 2px 12px rgba(8, 145, 178, 0.1);
+}
+.planComparisonCardActive {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 0 2px rgba(8, 145, 178, 0.15);
+}
+.planCardHeader {
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.planCardLabel {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--accent-cyan);
+}
+.planCardStyle {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-hover);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+.planCardBody {
+  padding: 10px 14px;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 400px;
+}
+.planCardDay {
+  margin-bottom: 10px;
+}
+.planCardDayTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  margin-bottom: 4px;
+}
+.planCardActivities {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.planCardActivities li {
+  font-size: 12px;
+  color: var(--text-primary);
+  padding: 3px 0;
+  line-height: 1.4;
+  display: flex;
+  gap: 6px;
+}
+.planCardTime {
+  color: var(--accent-teal);
+  font-weight: 500;
+  min-width: 40px;
+  flex-shrink: 0;
+}
+.choosePlanBtn {
+  margin: 10px 14px 14px;
+  padding: 10px;
+  background: linear-gradient(135deg, var(--accent-cyan), #3b82f6);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+.choosePlanBtn:hover {
+  transform: translateY(-1px);
+  opacity: 0.9;
+}
+
+@media (max-width: 900px) {
+  .planComparisonGrid {
+    grid-template-columns: 1fr;
+  }
+}

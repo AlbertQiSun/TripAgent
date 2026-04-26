@@ -675,22 +675,24 @@ export default function Home() {
   };
 
   // ── Plan variant helpers ───────────────────────────────────
-  const handleSelectVariant = (idx: number) => {
-    setSelectedVariant(idx);
+  const handleChoosePlan = (idx: number) => {
     const variant = planVariants[idx];
-    if (variant) {
-      // If it's an outline (no coordinates in first activity), ask LLM to expand
-      const firstAct = variant.days?.[0]?.activities?.find((a: any) => a.type === 'activity');
-      if (firstAct && !firstAct.coordinates) {
-        // Expand outline into full plan
-        const label = variant.label || String.fromCharCode(65 + idx);
-        handleSearch(`I choose Plan ${label} ("${variant.style}"). Please expand it into a fully detailed plan with coordinates, logistics, travel segments, and descriptions.`);
-      } else {
-        // Already a full plan, set it directly
-        const newHistory = [...planHistory];
-        newHistory[currentPlanIndex] = variant;
-        setPlanHistory(newHistory);
-      }
+    if (!variant) return;
+    setSelectedVariant(idx);
+    // Check if it's a full plan or an outline
+    const firstAct = variant.days?.[0]?.activities?.find((a: any) => a.type === 'activity');
+    const isOutline = firstAct && !firstAct.coordinates;
+    if (isOutline) {
+      // Expand outline: clear comparison view, ask LLM to expand
+      setPlanVariants([]);
+      const label = variant.label || String.fromCharCode(65 + idx);
+      handleSearch(`I choose Plan ${label} ("${variant.style}"). Please expand it into a fully detailed plan with all days, coordinates, logistics, travel segments, and descriptions. Return a single plan JSON with "days" only.`);
+    } else {
+      // Full plan (Plan A) — set it directly, clear comparison view
+      setPlanVariants([]);
+      const newHistory = [...planHistory];
+      newHistory[currentPlanIndex] = variant;
+      setPlanHistory(newHistory);
     }
   };
 
@@ -956,7 +958,7 @@ export default function Home() {
                   <button
                     key={i}
                     className={`${styles.planVariantTab} ${selectedVariant === i ? styles.planVariantTabActive : ''}`}
-                    onClick={() => handleSelectVariant(i)}
+                    onClick={() => setSelectedVariant(i)}
                   >
                     Plan {v.label || String.fromCharCode(65 + i)}
                     <span style={{fontSize: '10px', opacity: 0.7, marginLeft: '4px'}}>{v.style}</span>
@@ -965,7 +967,41 @@ export default function Home() {
               </div>
             )}
           </div>
-          {plan?.days ? (
+
+          {/* ── PLAN COMPARISON VIEW (A/B/C side-by-side) ──── */}
+          {planVariants.length > 1 ? (
+            <div className={styles.planComparisonGrid}>
+              {planVariants.map((variant: any, vi: number) => {
+                const isDetailed = variant.days?.[0]?.activities?.some((a: any) => a.coordinates);
+                return (
+                  <div key={vi} className={`${styles.planComparisonCard} ${selectedVariant === vi ? styles.planComparisonCardActive : ''}`}>
+                    <div className={styles.planCardHeader}>
+                      <span className={styles.planCardLabel}>Plan {variant.label || String.fromCharCode(65 + vi)}</span>
+                      <span className={styles.planCardStyle}>{variant.style}</span>
+                    </div>
+                    <div className={styles.planCardBody}>
+                      {variant.days?.map((day: any, di: number) => (
+                        <div key={di} className={styles.planCardDay}>
+                          <div className={styles.planCardDayTitle}>Day {day.day_index}: {day.theme}</div>
+                          <ul className={styles.planCardActivities}>
+                            {day.activities?.filter((a: any) => a.type === 'activity').map((act: any, ai: number) => (
+                              <li key={ai}>
+                                <span className={styles.planCardTime}>{act.time_start}</span>
+                                {act.name}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                    <button className={styles.choosePlanBtn} onClick={() => handleChoosePlan(vi)}>
+                      {isDetailed ? '✓ Choose This Plan' : '→ Choose & Expand'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : plan?.days ? (
             <div className={styles.timeline}>
               {plan.days.map((day: any, dayIdx: number) => (
                 <div key={dayIdx} className={styles.dayBlock}>
