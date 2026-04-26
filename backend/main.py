@@ -11,6 +11,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from google import genai
 from google.genai import types
+from openai import AsyncOpenAI
 
 from database import (
     init_db, get_user_preferences, save_user_preferences, 
@@ -43,8 +44,13 @@ client = None
 if GEMINI_KEY:
     client = genai.Client(api_key=GEMINI_KEY)
 
+# ── Local vLLM Client Setup ──────────────────────────────────────────────
+# Expects a vLLM server running OpenAI compatible API on port 8001
+local_client = AsyncOpenAI(api_key="EMPTY", base_url="http://localhost:8001/v1")
+
 MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 FALLBACK_MODEL = "gemini-2.5-flash-lite"
+LOCAL_MODEL_NAME = "Qwen/Qwen3-8B"
 
 # ── Pydantic Models ───────────────────────────────────────────────────────
 class Message(BaseModel):
@@ -58,6 +64,7 @@ class TripRequest(BaseModel):
     current_plan: Optional[str] = None
     image_base64: Optional[str] = None  # Base64-encoded image for multimodal analysis
     image_mime: Optional[str] = None    # e.g. "image/jpeg", "image/png"
+    model_choice: Optional[str] = "gemini" # "gemini" or "local"
 
 class ProfileRequest(BaseModel):
     username: str
@@ -245,7 +252,7 @@ async def run_agent_stream(request: TripRequest):
     Use Gemini with Google Search grounding to plan trips.
     Streams reasoning and search steps to the frontend via SSE.
     """
-    if not client:
+    if request.model_choice == "gemini" and not client:
         yield {"event": "thought", "data": json.dumps({
             "step_type": "thought",
             "content": "Error: No Gemini API key configured. Set GOOGLE_API_KEY in backend/.env"
@@ -267,8 +274,8 @@ async def run_agent_stream(request: TripRequest):
     search_tool = types.Tool(google_search=types.GoogleSearch())
     config = types.GenerateContentConfig(
         system_instruction=system_instruction,
-        tools=[search_tool],
-        thinking_config=types.ThinkingConfig(thinking_level="low"),
+        tools=[search_tool] if request.model_choice == "gemini" else None,
+        thinking_config=types.ThinkingConfig(thinking_level="low") if request.model_choice == "gemini" else None,
     )
 
     # ── RAG: Search community trips for relevant context ────────────
@@ -319,7 +326,7 @@ async def run_agent_stream(request: TripRequest):
     # Emit initial thought
     yield {"event": "thought", "data": json.dumps({
         "step_type": "thought",
-        "content": f"Analyzing request: \"{request.query}\". Searching for real-time travel information..."
+        "content": f"Analyzing request: \"{request.query}\". Using {'Local Model (' + LOCAL_MODEL_NAME + ')' if request.model_choice == 'local' else 'Gemini'}..."
     })}
     await asyncio.sleep(0.3)
 
@@ -330,62 +337,85 @@ async def run_agent_stream(request: TripRequest):
         grounding_sources = []
         used_model = MODEL
 
-        try:
-            response = await client.aio.models.generate_content(
-                model=MODEL,
-                contents=contents,
-                config=config,
-            )
-        except Exception as primary_err:
-            # Retry with fallback model on rate limit or other errors
-            err_str = str(primary_err)
-            yield {"event": "thought", "data": json.dumps({
-                "step_type": "thought",
-                "content": f"Primary model ({MODEL}) unavailable, switching to {FALLBACK_MODEL}..."
-            })}
-            await asyncio.sleep(0.2)
-            used_model = FALLBACK_MODEL
-            response = await client.aio.models.generate_content(
-                model=FALLBACK_MODEL,
-                contents=contents,
-                config=config,
+        if request.model_choice == "local":
+            # ── Local vLLM Path ──────────────────────────────────
+            used_model = LOCAL_MODEL_NAME
+
+            # Build OpenAI-compatible messages
+            openai_messages = [{"role": "system", "content": system_instruction}]
+            if request.history:
+                for msg in request.history:
+                    openai_messages.append({"role": "user" if msg.role == "user" else "assistant", "content": msg.content})
+            if request.current_plan:
+                openai_messages.append({"role": "assistant", "content": f"Here is the current itinerary I generated:\n```json\n{request.current_plan}\n```"})
+            openai_messages.append({"role": "user", "content": request.query})
+
+            local_response = await local_client.chat.completions.create(
+                model=LOCAL_MODEL_NAME,
+                messages=openai_messages,
+                stream=True
             )
 
-        # Extract grounding metadata (search queries and sources)
-        if response.candidates and response.candidates[0].grounding_metadata:
-            meta = response.candidates[0].grounding_metadata
-            
-            if meta.web_search_queries:
-                search_queries = list(meta.web_search_queries)
-                # Emit search action steps
-                for sq in search_queries:
-                    yield {"event": "action", "data": json.dumps({
-                        "step_type": "action",
-                        "content": f"Searching: \"{sq}\"",
-                        "tool_name": "google_search",
-                        "tool_input": sq,
-                    })}
-                    await asyncio.sleep(0.4)
+            async for chunk in local_response:
+                if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                    text = chunk.choices[0].delta.content
+                    response_text += text
+                    yield {"event": "message", "data": json.dumps({"content": text})}
 
-            if meta.grounding_chunks:
-                for chunk in meta.grounding_chunks[:8]:
-                    if chunk.web:
-                        grounding_sources.append({
-                            "title": chunk.web.title,
-                            "uri": chunk.web.uri,
-                        })
-                
-                # Emit observation with sources found
-                source_summary = ", ".join([s["title"] for s in grounding_sources[:5]])
-                yield {"event": "observation", "data": json.dumps({
-                    "step_type": "observation",
-                    "content": f"Found {len(grounding_sources)} sources: {source_summary}",
-                    "tool_name": "google_search",
+        else:
+            # ── Gemini Path ──────────────────────────────────────
+            try:
+                response = await client.aio.models.generate_content(
+                    model=MODEL,
+                    contents=contents,
+                    config=config,
+                )
+            except Exception as primary_err:
+                yield {"event": "thought", "data": json.dumps({
+                    "step_type": "thought",
+                    "content": f"Primary model ({MODEL}) unavailable, switching to {FALLBACK_MODEL}..."
                 })}
-                await asyncio.sleep(0.3)
+                await asyncio.sleep(0.2)
+                used_model = FALLBACK_MODEL
+                response = await client.aio.models.generate_content(
+                    model=FALLBACK_MODEL,
+                    contents=contents,
+                    config=config,
+                )
 
-        # Get the full response text
-        response_text = response.text or ""
+            # Extract grounding metadata (search queries and sources)
+            if response.candidates and response.candidates[0].grounding_metadata:
+                meta = response.candidates[0].grounding_metadata
+                
+                if meta.web_search_queries:
+                    search_queries = list(meta.web_search_queries)
+                    for sq in search_queries:
+                        yield {"event": "action", "data": json.dumps({
+                            "step_type": "action",
+                            "content": f"Searching: \"{sq}\"",
+                            "tool_name": "google_search",
+                            "tool_input": sq,
+                        })}
+                        await asyncio.sleep(0.4)
+
+                if meta.grounding_chunks:
+                    for chunk in meta.grounding_chunks[:8]:
+                        if chunk.web:
+                            grounding_sources.append({
+                                "title": chunk.web.title,
+                                "uri": chunk.web.uri,
+                            })
+                    
+                    source_summary = ", ".join([s["title"] for s in grounding_sources[:5]])
+                    yield {"event": "observation", "data": json.dumps({
+                        "step_type": "observation",
+                        "content": f"Found {len(grounding_sources)} sources: {source_summary}",
+                        "tool_name": "google_search",
+                    })}
+                    await asyncio.sleep(0.3)
+
+            # Get the full response text
+            response_text = response.text or ""
 
         # Split into reasoning text and JSON
         json_start = response_text.find("```json")
@@ -595,6 +625,7 @@ class PublishRequest(BaseModel):
     plan_json: str
     profile_summary: str
     consent: bool  # Must be True to publish
+    self_rating: int = 0
 
 @app.post("/community/publish")
 async def publish_community_trip(req: PublishRequest, current_user: str = Depends(get_current_user)):
@@ -603,7 +634,22 @@ async def publish_community_trip(req: PublishRequest, current_user: str = Depend
     # Generate embedding for retrieval
     embed_text = f"{req.destination} {req.title} {req.profile_summary}"
     embedding = await generate_embedding(embed_text)
-    trip_id = publish_trip(current_user, req.destination, req.title, req.plan_json, req.profile_summary, embedding)
+    
+    # Generate tags from profile summary
+    tags = ""
+    if client and req.profile_summary:
+        try:
+            tag_prompt = f"Extract 2 to 3 short tags (e.g., Budget, Family, Vegan) from this traveler profile summary. Return ONLY the tags separated by commas. Profile: {req.profile_summary}"
+            resp = await client.aio.models.generate_content(
+                model=MODEL,
+                contents=tag_prompt,
+            )
+            tags = resp.text.strip()
+        except Exception as e:
+            print(f"Tag generation failed: {e}")
+            pass
+            
+    trip_id = publish_trip(current_user, req.destination, req.title, req.plan_json, req.profile_summary, embedding, tags, req.self_rating)
     return {"status": "published", "trip_id": trip_id}
 
 @app.delete("/community/{trip_id}")

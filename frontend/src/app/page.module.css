@@ -1039,3 +1039,37 @@
   font-size: 11px;
   margin-top: 2px;
 }
+
+/* ── Model Selector ────────────────────────────── */
+.modelSelect {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  font-family: inherit;
+}
+.modelSelect:focus {
+  border-color: var(--accent-cyan);
+}
+
+/* ── Tags ──────────────────────────────────────── */
+.communityTags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.tagBadge {
+  display: inline-block;
+  background: var(--accent-cyan);
+  color: white;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  letter-spacing: 0.3px;
+}

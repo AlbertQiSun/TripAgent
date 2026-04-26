@@ -46,10 +46,15 @@ def init_db():
             embedding TEXT,
             avg_rating REAL DEFAULT 0,
             review_count INTEGER DEFAULT 0,
+            tags TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(username) REFERENCES users(username)
         )
     ''')
+    try:
+        c.execute("ALTER TABLE community_trips ADD COLUMN tags TEXT")
+    except sqlite3.OperationalError:
+        pass # Column already exists
     c.execute('''
         CREATE TABLE IF NOT EXISTS community_reviews (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -153,14 +158,25 @@ def get_session_detail(session_id: int):
 
 # ── Community Functions ──────────────────────────────────────────────────
 
-def publish_trip(username: str, destination: str, title: str, plan_json: str, profile_summary: str, embedding: list[float]) -> int:
+def publish_trip(username: str, destination: str, title: str, plan_json: str, profile_summary: str, embedding: list[float], tags: str = "", self_rating: int = 0) -> int:
     conn = sqlite3.connect(DB_FILE)
     c = conn.cursor()
+    # If a self_rating is provided, we set avg_rating = self_rating and review_count = 1
+    # We will also insert a review record for it to keep consistency if self_rating > 0
+    review_count = 1 if self_rating > 0 else 0
+    avg_rating = float(self_rating) if self_rating > 0 else 0.0
+
     c.execute('''
-        INSERT INTO community_trips (username, destination, title, plan_json, profile_summary, embedding)
-        VALUES (?, ?, ?, ?, ?, ?)
-    ''', (username, destination, title, plan_json, profile_summary, json.dumps(embedding)))
+        INSERT INTO community_trips (username, destination, title, plan_json, profile_summary, embedding, tags, avg_rating, review_count)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (username, destination, title, plan_json, profile_summary, json.dumps(embedding), tags, avg_rating, review_count))
     trip_id = c.lastrowid
+    
+    if self_rating > 0:
+        c.execute('''
+            INSERT INTO community_reviews (trip_id, username, rating, comment)
+            VALUES (?, ?, ?, ?)
+        ''', (trip_id, username, self_rating, "Self-rated at publish"))
     conn.commit()
     conn.close()
     return trip_id
@@ -182,16 +198,16 @@ def get_community_trips(destination: str = None, limit: int = 20):
     c = conn.cursor()
     if destination:
         c.execute("""
-            SELECT id, destination, title, profile_summary, avg_rating, review_count, created_at 
+            SELECT id, destination, title, profile_summary, avg_rating, review_count, tags, created_at 
             FROM community_trips 
             WHERE LOWER(destination) LIKE ? 
             ORDER BY avg_rating DESC, created_at DESC LIMIT ?
         """, (f"%{destination.lower()}%", limit))
     else:
         c.execute("""
-            SELECT id, destination, title, profile_summary, avg_rating, review_count, created_at 
+            SELECT id, destination, title, profile_summary, avg_rating, review_count, tags, created_at 
             FROM community_trips 
-            ORDER BY created_at DESC LIMIT ?
+            ORDER BY avg_rating DESC, created_at DESC LIMIT ?
         """, (limit,))
     rows = c.fetchall()
     conn.close()
@@ -201,7 +217,7 @@ def get_community_trip_detail(trip_id: int):
     conn = sqlite3.connect(DB_FILE)
     conn.row_factory = sqlite3.Row
     c = conn.cursor()
-    c.execute("SELECT id, username, destination, title, plan_json, profile_summary, avg_rating, review_count, created_at FROM community_trips WHERE id=?", (trip_id,))
+    c.execute("SELECT id, username, destination, title, plan_json, profile_summary, avg_rating, review_count, tags, created_at FROM community_trips WHERE id=?", (trip_id,))
     row = c.fetchone()
     if not row:
         conn.close()

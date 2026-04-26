@@ -58,6 +58,8 @@ export default function Home() {
   const [selectedCommunityTrip, setSelectedCommunityTrip] = useState<any>(null);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
+  const [publishSelfRating, setPublishSelfRating] = useState(0);
+  const [modelChoice, setModelChoice] = useState('gemini'); // 'gemini' | 'local'
 
   // Separate auth form state so it doesn't pollute the logged-in username
   const [authUsername, setAuthUsername] = useState('');
@@ -322,7 +324,8 @@ export default function Home() {
           username,
           current_plan: plan ? JSON.stringify(plan) : null,
           image_base64: pendingImage?.base64 || null,
-          image_mime: pendingImage?.mime || null
+          image_mime: pendingImage?.mime || null,
+          model_choice: modelChoice
         }),
       });
 
@@ -493,12 +496,14 @@ export default function Home() {
           title: plan.days?.[0]?.theme || 'Trip Plan',
           plan_json: JSON.stringify(plan),
           profile_summary: profilePreferences ? profilePreferences.slice(0, 200) : 'A traveler',
-          consent: true
+          consent: true,
+          self_rating: publishSelfRating
         })
       });
       if (res.ok) {
         setShowPublishModal(false);
         setPublishConsent(false);
+        setPublishSelfRating(0);
         alert('🎉 Trip published to the community!');
       } else {
         const data = await res.json();
@@ -589,10 +594,19 @@ export default function Home() {
               <button className={styles.iconBtn} onClick={startNewChat} title="New Chat">✚</button>
               {username && <button className={styles.iconBtn} onClick={fetchSessions} title="Saved Trips">📁</button>}
               <button className={styles.iconBtn} onClick={() => { setIsCommunityOpen(true); fetchCommunityFeed(); }} title="Community">🌍</button>
+              <select 
+                className={styles.modelSelect}
+                value={modelChoice} 
+                onChange={e => setModelChoice(e.target.value)}
+                title="Model"
+              >
+                <option value="gemini">☁️ Gemini</option>
+                <option value="local">🖥️ Qwen-Local</option>
+              </select>
               <button className={styles.iconBtn} onClick={() => setIsProfileModalOpen(true)} title="Profile">👤</button>
             </div>
           </div>
-          <div className={styles.subtitle}>AI Travel Agent · ReAct Reasoning</div>
+          <div className={styles.subtitle}>AI Travel Agent · ReAct Reasoning · {modelChoice === 'local' ? 'Offline Mode' : 'Cloud Mode'}</div>
         </div>
         
         <div className={styles.chatBox}>
@@ -928,6 +942,13 @@ export default function Home() {
                   <span className={styles.communityBadge}>★ {selectedCommunityTrip.avg_rating || 'New'} · {selectedCommunityTrip.review_count} reviews</span>
                 </div>
                 <div className={styles.communityProfile} style={{marginBottom: '12px'}}>🧳 <ReactMarkdown>{selectedCommunityTrip.profile_summary}</ReactMarkdown></div>
+                {selectedCommunityTrip.tags && (
+                  <div className={styles.communityTags} style={{marginBottom: '12px'}}>
+                    {selectedCommunityTrip.tags.split(',').map((tag: string, i: number) => (
+                      <span key={i} className={styles.tagBadge}>{tag.trim()}</span>
+                    ))}
+                  </div>
+                )}
 
                 {/* Plan preview */}
                 {selectedCommunityTrip.plan?.days?.map((day: any, idx: number) => (
@@ -992,6 +1013,13 @@ export default function Home() {
                       <div className={styles.communityDestination}>{trip.destination}</div>
                       <div className={styles.communityTitle}>{trip.title}</div>
                       <div className={styles.communityProfile}>🧳 <ReactMarkdown>{trip.profile_summary?.slice(0, 80) || ''}</ReactMarkdown></div>
+                      {trip.tags && (
+                        <div className={styles.communityTags}>
+                          {trip.tags.split(',').map((tag: string, i: number) => (
+                            <span key={i} className={styles.tagBadge}>{tag.trim()}</span>
+                          ))}
+                        </div>
+                      )}
                       <div className={styles.communityMeta}>
                         <span className={styles.communityBadge}>★ {trip.avg_rating || 'New'} · {trip.review_count} reviews</span>
                         <span>{new Date(trip.created_at).toLocaleDateString()}</span>
@@ -1031,6 +1059,14 @@ export default function Home() {
               <strong>Title:</strong> {plan?.days?.[0]?.theme || 'Trip Plan'}<br/>
               <strong>Activities:</strong> {plan?.days?.flatMap((d: any) => d.activities?.filter((a: any) => a.type === 'activity').map((a: any) => a.name)).join(', ')}<br/>
               <strong>Your profile (anonymized):</strong> {profilePreferences ? profilePreferences.slice(0, 100) + '...' : 'A traveler'}
+            </div>
+
+            <label style={{fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px'}}>Rate your plan</label>
+            <div className={styles.starRating} style={{marginBottom: '12px'}}>
+              {[1,2,3,4,5].map(n => (
+                <button key={n} className={`${styles.star} ${n <= publishSelfRating ? styles.starActive : ''}`} onClick={() => setPublishSelfRating(n)}>★</button>
+              ))}
+              <span style={{fontSize: '12px', color: 'var(--text-secondary)', marginLeft: '8px'}}>{publishSelfRating > 0 ? `${publishSelfRating}/5` : 'Optional'}</span>
             </div>
 
             <div className={styles.consentBox}>
