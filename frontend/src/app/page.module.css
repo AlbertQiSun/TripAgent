@@ -1041,18 +1041,23 @@
 }
 
 /* ── Model Selector ────────────────────────────── */
-.modelSelect {
+.modelToggleBtn {
   background: var(--bg-secondary);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
-  border-radius: 8px;
-  padding: 4px 8px;
+  border-radius: 20px;
+  padding: 4px 12px;
   font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
   outline: none;
-  font-family: inherit;
 }
-.modelSelect:focus {
+.modelToggleBtn:hover {
+  background: var(--bg-hover);
   border-color: var(--accent-cyan);
 }
 

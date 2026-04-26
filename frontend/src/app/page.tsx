@@ -594,15 +594,13 @@ export default function Home() {
               <button className={styles.iconBtn} onClick={startNewChat} title="New Chat">✚</button>
               {username && <button className={styles.iconBtn} onClick={fetchSessions} title="Saved Trips">📁</button>}
               <button className={styles.iconBtn} onClick={() => { setIsCommunityOpen(true); fetchCommunityFeed(); }} title="Community">🌍</button>
-              <select 
-                className={styles.modelSelect}
-                value={modelChoice} 
-                onChange={e => setModelChoice(e.target.value)}
-                title="Model"
+              <button 
+                className={styles.modelToggleBtn}
+                onClick={() => setModelChoice(prev => prev === 'gemini' ? 'local' : 'gemini')}
+                title={`Switch model. Current: ${modelChoice === 'gemini' ? 'Gemini (Cloud)' : 'Qwen (Local)'}`}
               >
-                <option value="gemini">☁️ Gemini</option>
-                <option value="local">🖥️ Qwen-Local</option>
-              </select>
+                {modelChoice === 'gemini' ? '☁️ Gemini' : '🖥️ Qwen-Local'}
+              </button>
               <button className={styles.iconBtn} onClick={() => setIsProfileModalOpen(true)} title="Profile">👤</button>
             </div>
           </div>
@@ -737,15 +735,15 @@ export default function Home() {
         
         <div className={styles.itineraryContainer}>
           <div className={styles.itineraryHeader}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%'}}>
               <h2>TRIP ITINERARY</h2>
               {plan && username && (
                 <button 
-                  className={styles.navBtn} 
-                  style={{fontSize: '11px', padding: '4px 10px'}}
+                  className={styles.primaryBtn} 
+                  style={{fontSize: '13px', padding: '6px 14px', borderRadius: '20px', marginLeft: 'auto'}}
                   onClick={() => { setShowPublishModal(true); setPublishDestination(''); }}
                 >
-                  🌍 Share
+                  🌍 Share to Community
                 </button>
               )}
             </div>
@@ -928,14 +926,23 @@ export default function Home() {
         <div className={styles.sidebarOverlay} onClick={() => { setIsCommunityOpen(false); setSelectedCommunityTrip(null); }}>
           <div className={styles.sidebarContent} onClick={e => e.stopPropagation()}>
             <div className={styles.sidebarHeader}>
-              <h3>{selectedCommunityTrip ? '← Trip Detail' : '🌍 Community Trips'}</h3>
+              {selectedCommunityTrip ? (
+                <h3 
+                  style={{cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px'}} 
+                  onClick={() => setSelectedCommunityTrip(null)}
+                  title="Back to Feed"
+                >
+                  <span style={{fontSize: '18px'}}>←</span> Trip Detail
+                </h3>
+              ) : (
+                <h3>🌍 Community Trips</h3>
+              )}
               <button className={styles.closeBtn} onClick={() => { setIsCommunityOpen(false); setSelectedCommunityTrip(null); }}>✕</button>
             </div>
 
             {selectedCommunityTrip ? (
               /* ── Trip Detail View ── */
               <div style={{padding: '16px', overflowY: 'auto', flex: 1}}>
-                <button className={styles.navBtn} onClick={() => setSelectedCommunityTrip(null)} style={{marginBottom: '12px'}}>← Back to Feed</button>
                 <div className={styles.communityDestination}>{selectedCommunityTrip.destination}</div>
                 <div className={styles.communityTitle} style={{fontSize: '16px', marginBottom: '8px'}}>{selectedCommunityTrip.title}</div>
                 <div className={styles.communityMeta}>
