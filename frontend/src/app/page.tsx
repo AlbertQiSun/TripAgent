@@ -1482,9 +1482,9 @@ export default function Home() {
               </div>
             </div>
 
-            <div className={styles.authBtnContainer}>
-              <button className={styles.authSecondaryBtn} onClick={() => setShowOnboarding(false)}>Skip</button>
-              <button className={styles.authPrimaryBtn} onClick={handleOnboardingSubmit}>Save & Start</button>
+            <div className={styles.authBtnContainer} style={{flexDirection: 'row', marginTop: '8px'}}>
+              <button className={styles.authSecondaryBtn} style={{flex: 1}} onClick={() => setShowOnboarding(false)}>Skip</button>
+              <button className={styles.authPrimaryBtn} style={{flex: 1}} onClick={handleOnboardingSubmit}>Save & Start</button>
             </div>
           </div>
         </div>

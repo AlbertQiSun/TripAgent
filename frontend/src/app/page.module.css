@@ -1173,12 +1173,13 @@
   border-color: var(--accent-cyan);
 }
 .pillActive {
-  background: var(--accent-cyan);
-  color: #fff;
+  background: rgba(8, 145, 178, 0.1);
+  color: var(--accent-cyan);
   border-color: var(--accent-cyan);
+  font-weight: 500;
 }
 .pillActive:hover {
-  background: var(--accent-teal);
+  background: rgba(8, 145, 178, 0.15);
   border-color: var(--accent-teal);
 }
 
@@ -1186,19 +1187,21 @@
 .planVariantTabs {
   display: flex;
   gap: 6px;
-  width: 100%;
+  /* width: 100%; removed so they don't stretch */
+  margin-top: 4px;
+  flex-wrap: wrap;
 }
 .planVariantTab {
-  flex: 1;
+  /* flex: 1; removed */
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 2px;
-  padding: 6px 10px;
+  gap: 4px;
+  padding: 6px 14px;
   background: var(--bg-glass);
   border: 1px solid var(--border-subtle);
-  border-radius: 10px;
-  font-size: 12px;
+  border-radius: 20px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text-secondary);
   cursor: pointer;
@@ -1210,10 +1213,10 @@
   color: var(--text-primary);
 }
 .planVariantTabActive {
-  background: var(--accent-cyan);
-  color: #fff;
+  background: rgba(8, 145, 178, 0.1);
+  color: var(--accent-cyan);
   border-color: var(--accent-cyan);
 }
 .planVariantTabActive:hover {
-  background: var(--accent-teal);
+  background: rgba(8, 145, 178, 0.15);
 }
