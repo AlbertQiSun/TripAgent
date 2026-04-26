@@ -64,6 +64,22 @@ export default function Home() {
   const [publishSelfRating, setPublishSelfRating] = useState(0);
   const [modelChoice, setModelChoice] = useState('gemini'); // 'gemini' | 'local'
 
+  // Profile onboarding
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [profileForm, setProfileForm] = useState({
+    budget: '',
+    ageRange: '',
+    identity: '',
+    hobbies: [] as string[],
+    wakeUpTime: '',
+    pace: '',
+    dietary: '',
+  });
+
+  // Plan variants (A/B/C)
+  const [planVariants, setPlanVariants] = useState<any[]>([]);
+  const [selectedVariant, setSelectedVariant] = useState(0);
+
   // Separate auth form state so it doesn't pollute the logged-in username
   const [authUsername, setAuthUsername] = useState('');
   const [authPassword, setAuthPassword] = useState('');
@@ -190,6 +206,8 @@ export default function Home() {
         // Persist to localStorage
         localStorage.setItem('tripai_token', data.token);
         localStorage.setItem('tripai_username', authUsername);
+        // Show onboarding for new users
+        setShowOnboarding(true);
       } else {
         alert(data.message);
       }
@@ -364,16 +382,36 @@ export default function Home() {
                 if (content.endsWith('```')) content = content.slice(0, -3);
                 try {
                   const parsed = JSON.parse(content.trim());
-                  const newPlanHistory = accumulatedPlans.slice(0, accumulatedPlanIndex + 1);
-                  newPlanHistory.push(parsed);
-                  accumulatedPlans = newPlanHistory;
-                  accumulatedPlanIndex = newPlanHistory.length - 1;
                   
-                  setPlanHistory(newPlanHistory);
-                  setCurrentPlanIndex(accumulatedPlanIndex);
-                  const modelMsg = { role: 'model' as const, content: "I've generated a detailed itinerary for you! Check it out on the right." };
-                  accumulatedMessages = [...accumulatedMessages, modelMsg];
-                  setMessages(accumulatedMessages);
+                  // Detect triple-plan format vs single-plan
+                  if (parsed.plans && Array.isArray(parsed.plans)) {
+                    // Triple plan (A/B/C) — store all variants, display Plan A
+                    setPlanVariants(parsed.plans);
+                    setSelectedVariant(0);
+                    const planA = parsed.plans[0];
+                    const newPlanHistory = accumulatedPlans.slice(0, accumulatedPlanIndex + 1);
+                    newPlanHistory.push(planA);
+                    accumulatedPlans = newPlanHistory;
+                    accumulatedPlanIndex = newPlanHistory.length - 1;
+                    setPlanHistory(newPlanHistory);
+                    setCurrentPlanIndex(accumulatedPlanIndex);
+                    const labels = parsed.plans.map((p: any) => `${p.label} (${p.style})`).join(', ');
+                    const modelMsg = { role: 'model' as const, content: `I've generated 3 plan variants: ${labels}. Plan A is shown — switch between them using the tabs above the itinerary!` };
+                    accumulatedMessages = [...accumulatedMessages, modelMsg];
+                    setMessages(accumulatedMessages);
+                  } else {
+                    // Single plan (modification or fallback)
+                    setPlanVariants([]);
+                    const newPlanHistory = accumulatedPlans.slice(0, accumulatedPlanIndex + 1);
+                    newPlanHistory.push(parsed);
+                    accumulatedPlans = newPlanHistory;
+                    accumulatedPlanIndex = newPlanHistory.length - 1;
+                    setPlanHistory(newPlanHistory);
+                    setCurrentPlanIndex(accumulatedPlanIndex);
+                    const modelMsg = { role: 'model' as const, content: "I've generated a detailed itinerary for you! Check it out on the right." };
+                    accumulatedMessages = [...accumulatedMessages, modelMsg];
+                    setMessages(accumulatedMessages);
+                  }
                   setSteps(prev => [...prev, { ...step, is_success: true }]);
                 } catch {
                   // If JSON parse fails, it might be a clarifying question
@@ -598,6 +636,61 @@ export default function Home() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // ── Profile helpers ────────────────────────────────────────
+  const profileFormToText = (form: typeof profileForm) => {
+    const parts: string[] = [];
+    if (form.budget) parts.push(`Budget: ${form.budget}`);
+    if (form.ageRange) parts.push(`Age: ${form.ageRange}`);
+    if (form.identity) parts.push(`Traveling: ${form.identity}`);
+    if (form.hobbies.length) parts.push(`Interests: ${form.hobbies.join(', ')}`);
+    if (form.wakeUpTime) parts.push(`Wake-up: ${form.wakeUpTime}`);
+    if (form.pace) parts.push(`Pace: ${form.pace}`);
+    if (form.dietary) parts.push(`Dietary: ${form.dietary}`);
+    return parts.length ? `[USER SELECTIONS]\n${parts.join(' | ')}` : '';
+  };
+
+  const toggleHobby = (hobby: string) => {
+    setProfileForm(prev => ({
+      ...prev,
+      hobbies: prev.hobbies.includes(hobby) 
+        ? prev.hobbies.filter(h => h !== hobby) 
+        : [...prev.hobbies, hobby]
+    }));
+  };
+
+  const handleOnboardingSubmit = async () => {
+    const text = profileFormToText(profileForm);
+    setProfilePreferences(text);
+    try {
+      await fetch('/api/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ username, preferences: text })
+      });
+    } catch (err) { console.error(err); }
+    setShowOnboarding(false);
+  };
+
+  // ── Plan variant helpers ───────────────────────────────────
+  const handleSelectVariant = (idx: number) => {
+    setSelectedVariant(idx);
+    const variant = planVariants[idx];
+    if (variant) {
+      // If it's an outline (no coordinates in first activity), ask LLM to expand
+      const firstAct = variant.days?.[0]?.activities?.find((a: any) => a.type === 'activity');
+      if (firstAct && !firstAct.coordinates) {
+        // Expand outline into full plan
+        const label = variant.label || String.fromCharCode(65 + idx);
+        handleSearch(`I choose Plan ${label} ("${variant.style}"). Please expand it into a fully detailed plan with coordinates, logistics, travel segments, and descriptions.`);
+      } else {
+        // Already a full plan, set it directly
+        const newHistory = [...planHistory];
+        newHistory[currentPlanIndex] = variant;
+        setPlanHistory(newHistory);
+      }
     }
   };
 
@@ -855,6 +948,20 @@ export default function Home() {
                 >
                   Next ▶
                 </button>
+              </div>
+            )}
+            {planVariants.length > 1 && (
+              <div className={styles.planVariantTabs}>
+                {planVariants.map((v: any, i: number) => (
+                  <button
+                    key={i}
+                    className={`${styles.planVariantTab} ${selectedVariant === i ? styles.planVariantTabActive : ''}`}
+                    onClick={() => handleSelectVariant(i)}
+                  >
+                    Plan {v.label || String.fromCharCode(65 + i)}
+                    <span style={{fontSize: '10px', opacity: 0.7, marginLeft: '4px'}}>{v.style}</span>
+                  </button>
+                ))}
               </div>
             )}
           </div>
@@ -1227,26 +1334,157 @@ export default function Home() {
 
       {isProfileModalOpen && isLoggedIn && (
         <div className={styles.sidebarOverlay} onClick={() => setIsProfileModalOpen(false)}>
-          <div className={styles.sidebarContent} onClick={e => e.stopPropagation()}>
+          <div className={styles.sidebarContent} onClick={e => e.stopPropagation()} style={{maxWidth: '420px'}}>
             <div className={styles.sidebarHeader}>
-              <h3>Memory Manager ({username})</h3>
+              <h3>Profile ({username})</h3>
               <button className={styles.closeBtn} onClick={() => setIsProfileModalOpen(false)}>✕</button>
             </div>
-            <div style={{padding: '16px', display: 'flex', flexDirection: 'column', flex: 1}}>
-              <p style={{fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5}}>
-                TripAI automatically extracts and learns your long-term preferences from our conversations. You can manually edit your memory below.
-              </p>
-              <textarea 
-                className={styles.modalTextarea}
-                rows={12} 
-                value={profilePreferences} 
-                onChange={e => setProfilePreferences(e.target.value)}
-                placeholder="e.g. I am a vegan traveler. I prefer luxury hotels."
-              />
-              <div style={{marginTop: 'auto', display: 'flex', gap: '12px', justifyContent: 'space-between', paddingTop: '20px'}}>
-                <button className={styles.secondaryBtn} onClick={() => {setIsLoggedIn(false); setUsername(''); setAuthUsername(''); setAuthPassword(''); setIsProfileModalOpen(false); localStorage.removeItem('tripai_token'); localStorage.removeItem('tripai_username');}}>Logout</button>
-                <button onClick={handleSaveProfile} className={styles.primaryBtn}>Save Memory</button>
+            <div style={{padding: '16px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '14px'}}>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>💰 Budget</label>
+                <div className={styles.pillGroup}>
+                  {['backpacker', 'moderate', 'luxury', 'no-limit'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.budget === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, budget: v}))}>{v}</button>
+                  ))}
+                </div>
               </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>🎂 Age Range</label>
+                <div className={styles.pillGroup}>
+                  {['18-24', '25-34', '35-49', '50+'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.ageRange === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, ageRange: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>👥 Traveling As</label>
+                <div className={styles.pillGroup}>
+                  {['solo', 'couple', 'family', 'friends'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.identity === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, identity: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>🎯 Interests</label>
+                <div className={styles.pillGroup}>
+                  {['food', 'art', 'nightlife', 'nature', 'history', 'adventure', 'shopping', 'photography'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.hobbies.includes(v) ? styles.pillActive : ''}`} onClick={() => toggleHobby(v)}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>⏰ Wake-up Style</label>
+                <div className={styles.pillGroup}>
+                  {['early-bird', 'normal', 'late-riser'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.wakeUpTime === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, wakeUpTime: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>🚶 Pace</label>
+                <div className={styles.pillGroup}>
+                  {['relaxed', 'moderate', 'packed'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.pace === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, pace: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>🥗 Dietary</label>
+                <div className={styles.pillGroup}>
+                  {['none', 'vegetarian', 'vegan', 'halal', 'kosher', 'gluten-free'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.dietary === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, dietary: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+
+              {/* AI Learned section */}
+              {profilePreferences.includes('[AI LEARNED]') && (
+                <div className={styles.profileSection}>
+                  <label className={styles.profileLabel}>🤖 AI Learned</label>
+                  <div style={{fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--bg-glass)', padding: '10px', borderRadius: '8px', lineHeight: 1.5, border: '1px solid var(--border-subtle)'}}>
+                    {profilePreferences.split('[AI LEARNED]')[1]?.trim() || 'Nothing learned yet.'}
+                  </div>
+                </div>
+              )}
+
+              <div style={{display: 'flex', gap: '12px', justifyContent: 'space-between', paddingTop: '8px'}}>
+                <button className={styles.secondaryBtn} onClick={() => {setIsLoggedIn(false); setUsername(''); setAuthUsername(''); setAuthPassword(''); setIsProfileModalOpen(false); localStorage.removeItem('tripai_token'); localStorage.removeItem('tripai_username');}}>Logout</button>
+                <button onClick={() => { const text = profileFormToText(profileForm); const aiSection = profilePreferences.includes('[AI LEARNED]') ? '\n\n' + profilePreferences.split('[AI LEARNED]').slice(1).map(s => '[AI LEARNED]' + s).join('') : ''; setProfilePreferences(text + aiSection); handleSaveProfile(); }} className={styles.primaryBtn}>Save Profile</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ONBOARDING MODAL ──────────────────────── */}
+      {showOnboarding && (
+        <div className={styles.authOverlay}>
+          <div className={styles.authCard} style={{maxWidth: '480px'}}>
+            <h2 className={styles.authLogo}>Welcome to TRIP<span className={styles.accent}>AI</span></h2>
+            <p className={styles.authSubtitle}>Tell us about yourself so we can personalize your trips</p>
+            
+            <div style={{display: 'flex', flexDirection: 'column', gap: '12px', margin: '16px 0'}}>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>💰 Budget</label>
+                <div className={styles.pillGroup}>
+                  {['backpacker', 'moderate', 'luxury', 'no-limit'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.budget === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, budget: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>🎂 Age</label>
+                <div className={styles.pillGroup}>
+                  {['18-24', '25-34', '35-49', '50+'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.ageRange === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, ageRange: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>👥 Traveling As</label>
+                <div className={styles.pillGroup}>
+                  {['solo', 'couple', 'family', 'friends'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.identity === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, identity: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>🎯 Interests</label>
+                <div className={styles.pillGroup}>
+                  {['food', 'art', 'nightlife', 'nature', 'history', 'adventure', 'shopping', 'photography'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.hobbies.includes(v) ? styles.pillActive : ''}`} onClick={() => toggleHobby(v)}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>⏰ Wake-up</label>
+                <div className={styles.pillGroup}>
+                  {['early-bird', 'normal', 'late-riser'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.wakeUpTime === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, wakeUpTime: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>🚶 Pace</label>
+                <div className={styles.pillGroup}>
+                  {['relaxed', 'moderate', 'packed'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.pace === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, pace: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+              <div className={styles.profileSection}>
+                <label className={styles.profileLabel}>🥗 Dietary</label>
+                <div className={styles.pillGroup}>
+                  {['none', 'vegetarian', 'vegan', 'halal', 'kosher', 'gluten-free'].map(v => (
+                    <button key={v} className={`${styles.pill} ${profileForm.dietary === v ? styles.pillActive : ''}`} onClick={() => setProfileForm(p => ({...p, dietary: v}))}>{v}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.authBtnContainer}>
+              <button className={styles.authSecondaryBtn} onClick={() => setShowOnboarding(false)}>Skip</button>
+              <button className={styles.authPrimaryBtn} onClick={handleOnboardingSubmit}>Save & Start</button>
             </div>
           </div>
         </div>

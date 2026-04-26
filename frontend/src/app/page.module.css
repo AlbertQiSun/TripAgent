@@ -1138,3 +1138,82 @@
   box-shadow: 0 0 12px rgba(8, 145, 178, 0.25);
   transition: all 0.3s ease;
 }
+
+/* ── Profile Selectors ─────────────────────────── */
+.profileSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.profileLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+}
+.pillGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pill {
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: capitalize;
+}
+.pill:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-cyan);
+}
+.pillActive {
+  background: var(--accent-cyan);
+  color: #fff;
+  border-color: var(--accent-cyan);
+}
+.pillActive:hover {
+  background: var(--accent-teal);
+  border-color: var(--accent-teal);
+}
+
+/* ── Plan Variant Tabs ─────────────────────────── */
+.planVariantTabs {
+  display: flex;
+  gap: 6px;
+  width: 100%;
+}
+.planVariantTab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 10px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.planVariantTab:hover {
+  background: var(--bg-hover);
+  border-color: var(--accent-cyan);
+  color: var(--text-primary);
+}
+.planVariantTabActive {
+  background: var(--accent-cyan);
+  color: #fff;
+  border-color: var(--accent-cyan);
+}
+.planVariantTabActive:hover {
+  background: var(--accent-teal);
+}
