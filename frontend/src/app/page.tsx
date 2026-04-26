@@ -734,8 +734,8 @@ export default function Home() {
         </div>
         
         <div className={styles.itineraryContainer}>
-          <div className={styles.itineraryHeader}>
-            <div style={{display: 'flex', alignItems: 'center', gap: '12px', width: '100%'}}>
+          <div className={styles.itineraryHeader} style={{ flexWrap: 'wrap', gap: '12px' }}>
+            <div style={{display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: '200px'}}>
               <h2>TRIP ITINERARY</h2>
               {plan && username && (
                 <button 
@@ -753,16 +753,18 @@ export default function Home() {
                   disabled={currentPlanIndex === 0} 
                   onClick={() => setCurrentPlanIndex(prev => prev - 1)}
                   className={styles.navBtn}
+                  style={{whiteSpace: 'nowrap'}}
                 >
-                  ◀ Prev Plan
+                  ◀ Prev
                 </button>
-                <span className={styles.historyCount}>v{currentPlanIndex + 1} of {planHistory.length}</span>
+                <span className={styles.historyCount} style={{whiteSpace: 'nowrap'}}>v{currentPlanIndex + 1}/{planHistory.length}</span>
                 <button 
                   disabled={currentPlanIndex === planHistory.length - 1} 
                   onClick={() => setCurrentPlanIndex(prev => prev + 1)}
                   className={styles.navBtn}
+                  style={{whiteSpace: 'nowrap'}}
                 >
-                  Next Plan ▶
+                  Next ▶
                 </button>
               </div>
             )}
